@@ -11,9 +11,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-public class DistributedMatrixMultiplication2 {
+import com.hazelcast.config.Config;
+import com.hazelcast.config.JoinConfig;
+import com.hazelcast.core.Hazelcast;
 
-    // Callable task for multiplying two matrix chunks
+public class DistributedMatrixMultiplication2 {
     static class MatrixMultiplicationTask implements Callable<int[][]>, Serializable {
         private final int[][] chunkA;
         private final int[][] chunkB;
@@ -53,11 +55,31 @@ public class DistributedMatrixMultiplication2 {
     }
 
     public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+
+
+
+        Config config = new Config();
+
+        // Configuración de la red
+        JoinConfig joinConfig = config.getNetworkConfig().getJoin();
+
+        // Deshabilitar descubrimiento multicast (opcional, para mayor control)
+        joinConfig.getMulticastConfig().setEnabled(false);
+
+        // Configurar miembros de la red manualmente
+        joinConfig.getTcpIpConfig()
+                .setEnabled(true)
+                .addMember("192.168.1.101") ; // IP del ordenador 1
+                //.addMember("192.168.1.101"); // IP del ordenador 2
+
+        // Inicia la instancia de Hazelcast
+        HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(config);
         // Start Hazelcast instance
-        HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance();
+
 
         // Example Matrices
-        int[] matrixSizes = {2}; // Tamaños de matriz para pruebas
+        int[] matrixSizes = {2000}; // Tamaños de matriz para pruebas
 
         int[][] matrixA = new int[0][];
         int[][] matrixB = new int[0][];
@@ -93,7 +115,6 @@ public class DistributedMatrixMultiplication2 {
             }
             System.out.println();
         }
-
         // Shutdown Hazelcast instance
         hazelcastInstance.shutdown();
     }
