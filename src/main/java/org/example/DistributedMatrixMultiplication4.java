@@ -49,7 +49,7 @@ public class DistributedMatrixMultiplication4 {
         Random random = new Random();
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                matrix[i][j] = random.nextInt(10); // Números aleatorios entre 0 y 9
+                matrix[i][j] = random.nextInt(10);
             }
         }
         return matrix;
@@ -61,8 +61,8 @@ public class DistributedMatrixMultiplication4 {
         joinConfig.getMulticastConfig().setEnabled(false);
         joinConfig.getTcpIpConfig()
                 .setEnabled(true)
-                .addMember("192.168.1.101") // Nodo 1
-                .addMember("192.168.1.102"); // Nodo 2
+                .addMember("192.168.1.101")
+                .addMember("192.168.1.102");
 
         HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 
@@ -72,26 +72,27 @@ public class DistributedMatrixMultiplication4 {
         IMap<Integer, int[][]> distributedMatrixB = hazelcastInstance.getMap("matrixB");
 
         if (isMaster) {
-            System.out.println("Soy el nodo principal. Generando matrices...");
+            System.out.println("Master node detected. Generating matrices...");
             int[][] matrixA = generateMatrix(2000, 2000);
             int[][] matrixB = generateMatrix(2000, 2000);
 
             distributedMatrixA.put(0, matrixA);
             distributedMatrixB.put(0, matrixB);
 
-            System.out.println("Matrices generadas y distribuidas.");
+            System.out.println("Matrices have been successfully generated and distributed.");
         } else {
-            System.out.println("Soy un nodo secundario. Esperando matrices...");
+            System.out.println("Worker node detected. Awaiting matrices from the master node...");
             while (!distributedMatrixA.containsKey(0) || !distributedMatrixB.containsKey(0)) {
                 Thread.sleep(100);
             }
         }
 
+
         int[][] matrixA = distributedMatrixA.get(0);
         int[][] matrixB = distributedMatrixB.get(0);
 
         List<int[][]> chunks = new ArrayList<>();
-        int chunkSize = 500; // Dividir matrixA en fragmentos de 500 filas
+        int chunkSize = 500;
         for (int i = 0; i < matrixA.length; i += chunkSize) {
             int[][] chunk = new int[Math.min(chunkSize, matrixA.length - i)][matrixA[0].length];
             System.arraycopy(matrixA, i, chunk, 0, chunk.length);
@@ -114,8 +115,8 @@ public class DistributedMatrixMultiplication4 {
             currentRow += partialResult.length;
         }
 
-        System.out.println("Multiplicación completada. Resultados parciales:");
-        for (int i = 0; i < Math.min(5, result.length); i++) { // Imprimir solo las primeras 5 filas
+        System.out.println("Multiplication completed. Partial results:");
+        for (int i = 0; i < Math.min(5, result.length); i++) {
             for (int j = 0; j < Math.min(5, result[i].length); j++) {
                 System.out.print(result[i][j] + " ");
             }
