@@ -5,35 +5,38 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-public class DistributedMatrixMultiplication {
+import com.hazelcast.config.Config;
+import com.hazelcast.config.JoinConfig;
 
-    // Callable task for multiplying two matrix chunks
+public class DistributedMatrixMultiplication {
     static class MatrixMultiplicationTask implements Callable<int[][]>, Serializable {
         private final int[][] chunkA;
-        private final int[][] chunkB;
+        private final int[][] matrixB;
 
-        public MatrixMultiplicationTask(int[][] chunkA, int[][] chunkB) {
+        public MatrixMultiplicationTask(int[][] chunkA, int[][] matrixB) {
             this.chunkA = chunkA;
-            this.chunkB = chunkB;
+            this.matrixB = matrixB;
         }
 
         @Override
         public int[][] call() {
             int rows = chunkA.length;
-            int cols = chunkB[0].length;
-            int size = chunkB.length;
+            int cols = matrixB[0].length;
+            int size = matrixB.length;
             int[][] result = new int[rows][cols];
 
             for (int i = 0; i < rows; i++) {
                 for (int j = 0; j < cols; j++) {
                     for (int k = 0; k < size; k++) {
-                        result[i][j] += chunkA[i][k] * chunkB[k][j];
+                        result[i][j] += chunkA[i][k] * matrixB[k][j];
                     }
                 }
             }
@@ -41,57 +44,85 @@ public class DistributedMatrixMultiplication {
         }
     }
 
-    private static double[][] generateMatrix(int rows, int cols) {
-        double[][] matrix = new double[rows][cols];
+    private static int[][] generateMatrix(int rows, int cols) {
+        int[][] matrix = new int[rows][cols];
         Random random = new Random();
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                matrix[i][j] = random.nextDouble() * 10;
+                matrix[i][j] = random.nextInt(10);
             }
         }
         return matrix;
     }
 
     public static void main(String[] args) throws ExecutionException, InterruptedException {
-        // Start Hazelcast instance
-        HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance();
+        Config config = new Config();
+        JoinConfig joinConfig = config.getNetworkConfig().getJoin();
+        joinConfig.getMulticastConfig().setEnabled(false);
+        joinConfig.getTcpIpConfig()
+                .setEnabled(true)
+                .addMember("192.168.1.101")
+                .addMember("192.168.1.102");
 
-        // Example Matrices
-        int[][] matrixA = {
-                {1, 2, 3},
-                {4, 5, 6}
-        };
-        int[][] matrixB = {
-                {7, 8},
-                {9, 10},
-                {11, 12}
-        };
+        HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 
-        // Partition the matrices into smaller chunks
-        // Here we use the entire matrices for simplicity
+        boolean isMaster = hazelcastInstance.getCluster().getMembers().iterator().next().localMember();
+
         IMap<Integer, int[][]> distributedMatrixA = hazelcastInstance.getMap("matrixA");
         IMap<Integer, int[][]> distributedMatrixB = hazelcastInstance.getMap("matrixB");
 
-        distributedMatrixA.put(0, matrixA);
-        distributedMatrixB.put(0, matrixB);
+        if (isMaster) {
+            System.out.println("Master node detected. Generating matrices...");
+            int[][] matrixA = generateMatrix(2000, 2000);
+            int[][] matrixB = generateMatrix(2000, 2000);
 
-        // Submit tasks for computation
+            distributedMatrixA.put(0, matrixA);
+            distributedMatrixB.put(0, matrixB);
+
+            System.out.println("Matrices have been successfully generated and distributed.");
+        } else {
+            System.out.println("Worker node detected. Awaiting matrices from the master node...");
+            while (!distributedMatrixA.containsKey(0) || !distributedMatrixB.containsKey(0)) {
+                Thread.sleep(100);
+            }
+        }
+
+
+        int[][] matrixA = distributedMatrixA.get(0);
+        int[][] matrixB = distributedMatrixB.get(0);
+
+        List<int[][]> chunks = new ArrayList<>();
+        int chunkSize = 500;
+        for (int i = 0; i < matrixA.length; i += chunkSize) {
+            int[][] chunk = new int[Math.min(chunkSize, matrixA.length - i)][matrixA[0].length];
+            System.arraycopy(matrixA, i, chunk, 0, chunk.length);
+            chunks.add(chunk);
+        }
+
         ExecutorService executorService = hazelcastInstance.getExecutorService("matrixExecutor");
-        Future<int[][]> futureResult = executorService.submit(new MatrixMultiplicationTask(matrixA, matrixB));
+        List<Future<int[][]>> futures = new ArrayList<>();
 
-        // Combine results
-        int[][] result = futureResult.get();
+        for (int[][] chunk : chunks) {
+            futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
+        }
 
-        // Print result
-        System.out.println("Resultant Matrix:");
-        for (int[] row : result) {
-            for (int val : row) {
-                System.out.print(val + " ");
+        int[][] result = new int[matrixA.length][matrixB[0].length];
+        int currentRow = 0;
+
+        for (Future<int[][]> future : futures) {
+            int[][] partialResult = future.get();
+            System.arraycopy(partialResult, 0, result, currentRow, partialResult.length);
+            currentRow += partialResult.length;
+        }
+
+        System.out.println("Multiplication completed. Partial results:");
+        for (int i = 0; i < Math.min(5, result.length); i++) {
+            for (int j = 0; j < Math.min(5, result[i].length); j++) {
+                System.out.print(result[i][j] + " ");
             }
             System.out.println();
         }
 
-        // Shutdown Hazelcast instance
-        hazelcastInstance.shutdown();
+
     }
 }
