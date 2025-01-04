@@ -55,7 +55,7 @@ public class DistributedMatrixMultiplication {
         return matrix;
     }
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public int[][] execute(int rows, int cols) throws ExecutionException, InterruptedException {
         Config config = new Config();
         JoinConfig joinConfig = config.getNetworkConfig().getJoin();
         joinConfig.getMulticastConfig().setEnabled(false);
@@ -73,8 +73,8 @@ public class DistributedMatrixMultiplication {
 
         if (isMaster) {
             System.out.println("Master node detected. Generating matrices...");
-            int[][] matrixA = generateMatrix(2000, 2000);
-            int[][] matrixB = generateMatrix(2000, 2000);
+            int[][] matrixA = generateMatrix(rows, cols);
+            int[][] matrixB = generateMatrix(rows, cols);
 
             distributedMatrixA.put(0, matrixA);
             distributedMatrixB.put(0, matrixB);
@@ -123,6 +123,6 @@ public class DistributedMatrixMultiplication {
             System.out.println();
         }
 
-
+        return result;
     }
 }
