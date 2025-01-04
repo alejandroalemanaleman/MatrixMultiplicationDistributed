@@ -5,7 +5,6 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 
 import java.io.Serializable;
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -70,8 +69,8 @@ public class DistributedMatrixMultiplication {
         joinConfig.getMulticastConfig().setEnabled(false);
         joinConfig.getTcpIpConfig()
                 .setEnabled(true)
-                .addMember("192.168.1.101")
-                .addMember("192.168.1.104");
+                .addMember("IP1")
+                .addMember("IP2");
 
         return Hazelcast.newHazelcastInstance(config);
     }

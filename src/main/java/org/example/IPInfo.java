@@ -11,7 +11,6 @@ public class IPInfo {
             while (interfaces.hasMoreElements()) {
                 NetworkInterface networkInterface = interfaces.nextElement();
 
-                // Ignorar interfaces inactivas y loopback
                 if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
                     continue;
                 }
@@ -20,9 +19,8 @@ public class IPInfo {
                 while (addresses.hasMoreElements()) {
                     InetAddress address = addresses.nextElement();
 
-                    // Excluir direcciones de loopback y IPv6
                     if (!address.isLoopbackAddress() && address instanceof java.net.Inet4Address) {
-                        return address.getHostAddress(); // Dirección IPv4
+                        return address.getHostAddress();
                     }
                 }
             }
