@@ -37,6 +37,7 @@ public class DistributedMatrixMultiplication {
                 for (int j = 0; j < cols; j++) {
                     for (int k = 0; k < size; k++) {
                         result[i][j] += chunkA[i][k] * matrixB[k][j];
+                        System.out.println(result[i][j]);
                     }
                 }
             }
@@ -82,10 +83,10 @@ public class DistributedMatrixMultiplication {
         System.out.println("Matrices have been successfully generated and distributed.");
     }
 
-    private void waitForMatrices(IMap<Integer, int[][]> distributedMatrixA, IMap<Integer, int[][]> distributedMatrixB) throws InterruptedException {
-        System.out.println("Worker node detected. Awaiting matrices from the master node...");
-        while (!distributedMatrixA.containsKey(0) || !distributedMatrixB.containsKey(0)) {
-            Thread.sleep(100);
+    private void distributeChunks(IMap<Integer, int[][]> distributedChunks, int[][] matrixA, int chunkSize) {
+        List<int[][]> chunks = splitMatrix(matrixA, chunkSize);
+        for (int i = 0; i < chunks.size(); i++) {
+            distributedChunks.put(i, chunks.get(i));
         }
     }
 
@@ -99,12 +100,12 @@ public class DistributedMatrixMultiplication {
         return chunks;
     }
 
-    private int[][] mergeResults(List<Future<int[][]>> futures, int rows, int cols) throws ExecutionException, InterruptedException {
+    private int[][] mergeResults(IMap<Integer, int[][]> distributedResults, int rows, int cols, int numChunks) {
         int[][] result = new int[rows][cols];
         int currentRow = 0;
 
-        for (Future<int[][]> future : futures) {
-            int[][] partialResult = future.get();
+        for (int i = 0; i < numChunks; i++) {
+            int[][] partialResult = distributedResults.get(i);
             System.arraycopy(partialResult, 0, result, currentRow, partialResult.length);
             currentRow += partialResult.length;
         }
@@ -118,35 +119,37 @@ public class DistributedMatrixMultiplication {
 
         IMap<Integer, int[][]> distributedMatrixA = hazelcastInstance.getMap("matrixA");
         IMap<Integer, int[][]> distributedMatrixB = hazelcastInstance.getMap("matrixB");
+        IMap<Integer, int[][]> distributedChunks = hazelcastInstance.getMap("chunks");
+        IMap<Integer, int[][]> distributedResults = hazelcastInstance.getMap("results");
 
         if (isMaster) {
             setupMatrices(distributedMatrixA, distributedMatrixB, rows, cols);
+            int[][] matrixA = distributedMatrixA.get(0);
+            distributeChunks(distributedChunks, matrixA, 500);
         } else {
-            waitForMatrices(distributedMatrixA, distributedMatrixB);
+            System.out.println("Worker node awaiting tasks...");
         }
 
-        int[][] matrixA = distributedMatrixA.get(0);
+        while (!distributedChunks.containsKey(0) || !distributedMatrixB.containsKey(0)) {
+            Thread.sleep(100);
+        }
+
         int[][] matrixB = distributedMatrixB.get(0);
-
-        List<int[][]> chunks = splitMatrix(matrixA, 500);
-
-        ExecutorService executorService = hazelcastInstance.getExecutorService("matrixExecutor");
-        List<Future<int[][]>> futures = new ArrayList<>();
-
-        // Distribute tasks among nodes
-        for (int[][] chunk : chunks) {
-            futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
+        for (int i = 0; i < distributedChunks.size(); i++) {
+            if (!distributedResults.containsKey(i)) {
+                int[][] chunk = distributedChunks.get(i);
+                int[][] partialResult = new MatrixMultiplicationTask(chunk, matrixB).call();
+                distributedResults.put(i, partialResult);
+            }
         }
-
-        // Combine results in the master node
-        int[][] result = mergeResults(futures, matrixA.length, matrixB[0].length);
 
         if (isMaster) {
-            System.out.println("Master node completed aggregation of results.");
+            System.out.println("Master node aggregating results...");
+            int[][] matrixA = distributedMatrixA.get(0);
+            return mergeResults(distributedResults, matrixA.length, matrixB[0].length, distributedChunks.size());
         } else {
             System.out.println("Worker node completed assigned tasks.");
+            return null;
         }
-
-        return result;
     }
 }
