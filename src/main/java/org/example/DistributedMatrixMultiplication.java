@@ -55,7 +55,7 @@ public class DistributedMatrixMultiplication {
         return matrix;
     }
 
-    public int[][] execute(int rows, int cols) throws ExecutionException, InterruptedException {
+    private HazelcastInstance configureHazelcast() {
         Config config = new Config();
         JoinConfig joinConfig = config.getNetworkConfig().getJoin();
         joinConfig.getMulticastConfig().setEnabled(false);
@@ -64,49 +64,43 @@ public class DistributedMatrixMultiplication {
                 .addMember("192.168.1.101")
                 .addMember("192.168.1.102");
 
-        HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(config);
+        return Hazelcast.newHazelcastInstance(config);
+    }
 
-        boolean isMaster = hazelcastInstance.getCluster().getMembers().iterator().next().localMember();
+    private boolean isMasterNode(HazelcastInstance hazelcastInstance) {
+        return hazelcastInstance.getCluster().getMembers().iterator().next().localMember();
+    }
 
-        IMap<Integer, int[][]> distributedMatrixA = hazelcastInstance.getMap("matrixA");
-        IMap<Integer, int[][]> distributedMatrixB = hazelcastInstance.getMap("matrixB");
+    private void setupMatrices(IMap<Integer, int[][]> distributedMatrixA, IMap<Integer, int[][]> distributedMatrixB, int rows, int cols) {
+        System.out.println("Master node detected. Generating matrices...");
+        int[][] matrixA = generateMatrix(rows, cols);
+        int[][] matrixB = generateMatrix(rows, cols);
 
-        if (isMaster) {
-            System.out.println("Master node detected. Generating matrices...");
-            int[][] matrixA = generateMatrix(rows, cols);
-            int[][] matrixB = generateMatrix(rows, cols);
+        distributedMatrixA.put(0, matrixA);
+        distributedMatrixB.put(0, matrixB);
 
-            distributedMatrixA.put(0, matrixA);
-            distributedMatrixB.put(0, matrixB);
+        System.out.println("Matrices have been successfully generated and distributed.");
+    }
 
-            System.out.println("Matrices have been successfully generated and distributed.");
-        } else {
-            System.out.println("Worker node detected. Awaiting matrices from the master node...");
-            while (!distributedMatrixA.containsKey(0) || !distributedMatrixB.containsKey(0)) {
-                Thread.sleep(100);
-            }
+    private void waitForMatrices(IMap<Integer, int[][]> distributedMatrixA, IMap<Integer, int[][]> distributedMatrixB) throws InterruptedException {
+        System.out.println("Worker node detected. Awaiting matrices from the master node...");
+        while (!distributedMatrixA.containsKey(0) || !distributedMatrixB.containsKey(0)) {
+            Thread.sleep(100);
         }
+    }
 
-
-        int[][] matrixA = distributedMatrixA.get(0);
-        int[][] matrixB = distributedMatrixB.get(0);
-
+    private List<int[][]> splitMatrix(int[][] matrixA, int chunkSize) {
         List<int[][]> chunks = new ArrayList<>();
-        int chunkSize = 500;
         for (int i = 0; i < matrixA.length; i += chunkSize) {
             int[][] chunk = new int[Math.min(chunkSize, matrixA.length - i)][matrixA[0].length];
             System.arraycopy(matrixA, i, chunk, 0, chunk.length);
             chunks.add(chunk);
         }
+        return chunks;
+    }
 
-        ExecutorService executorService = hazelcastInstance.getExecutorService("matrixExecutor");
-        List<Future<int[][]>> futures = new ArrayList<>();
-
-        for (int[][] chunk : chunks) {
-            futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
-        }
-
-        int[][] result = new int[matrixA.length][matrixB[0].length];
+    private int[][] mergeResults(List<Future<int[][]>> futures, int rows, int cols) throws ExecutionException, InterruptedException {
+        int[][] result = new int[rows][cols];
         int currentRow = 0;
 
         for (Future<int[][]> future : futures) {
@@ -114,14 +108,47 @@ public class DistributedMatrixMultiplication {
             System.arraycopy(partialResult, 0, result, currentRow, partialResult.length);
             currentRow += partialResult.length;
         }
+        return result;
+    }
 
-        System.out.println("Multiplication completed. Partial results:");
+    private int[][] printPartialResults(int[][] result){
+        System.out.println("Partial results:");
         for (int i = 0; i < Math.min(5, result.length); i++) {
             for (int j = 0; j < Math.min(5, result[i].length); j++) {
                 System.out.print(result[i][j] + " ");
             }
             System.out.println();
         }
+    }
+
+    public int[][] execute(int rows, int cols) throws ExecutionException, InterruptedException {
+        HazelcastInstance hazelcastInstance = configureHazelcast();
+
+        boolean isMaster = isMasterNode(hazelcastInstance);
+
+        IMap<Integer, int[][]> distributedMatrixA = hazelcastInstance.getMap("matrixA");
+        IMap<Integer, int[][]> distributedMatrixB = hazelcastInstance.getMap("matrixB");
+
+        if (isMaster) {
+            setupMatrices(distributedMatrixA, distributedMatrixB, rows, cols);
+        } else {
+            waitForMatrices(distributedMatrixA, distributedMatrixB);
+        }
+
+        int[][] matrixA = distributedMatrixA.get(0);
+        int[][] matrixB = distributedMatrixB.get(0);
+
+        List<int[][]> chunks = splitMatrix(matrixA, 500);
+
+        ExecutorService executorService = hazelcastInstance.getExecutorService("matrixExecutor");
+        List<Future<int[][]>> futures = new ArrayList<>();
+
+        for (int[][] chunk : chunks) {
+            futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
+        }
+        int[][] result = mergeResults(futures, matrixA.length, matrixB[0].length);
+
+        System.out.println("Multiplication completed.");
 
         return result;
     }
