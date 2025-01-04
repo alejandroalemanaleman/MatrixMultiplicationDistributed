@@ -37,7 +37,6 @@ public class DistributedMatrixMultiplication {
                 for (int j = 0; j < cols; j++) {
                     for (int k = 0; k < size; k++) {
                         result[i][j] += chunkA[i][k] * matrixB[k][j];
-                        System.out.println(result[i][j]);
                     }
                 }
             }
@@ -134,19 +133,20 @@ public class DistributedMatrixMultiplication {
         ExecutorService executorService = hazelcastInstance.getExecutorService("matrixExecutor");
         List<Future<int[][]>> futures = new ArrayList<>();
 
+        // Distribute tasks among nodes
         for (int[][] chunk : chunks) {
             futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
         }
 
-        // All nodes, including master, compute their assigned chunks
-        int[][] localResult = mergeResults(futures, matrixA.length, matrixB[0].length);
+        // Combine results in the master node
+        int[][] result = mergeResults(futures, matrixA.length, matrixB[0].length);
 
-        // Combine all local results in master (if needed)
         if (isMaster) {
-            System.out.println("Master node aggregating results...");
-            return localResult; // In distributed scenarios, master could aggregate remote results too.
+            System.out.println("Master node completed aggregation of results.");
+        } else {
+            System.out.println("Worker node completed assigned tasks.");
         }
 
-        return localResult;
+        return result;
     }
 }
