@@ -111,7 +111,7 @@ public class DistributedMatrixMultiplication {
         return result;
     }
 
-    private int[][] printPartialResults(int[][] result){
+    private void printPartialResults(int[][] result){
         System.out.println("Partial results:");
         for (int i = 0; i < Math.min(5, result.length); i++) {
             for (int j = 0; j < Math.min(5, result[i].length); j++) {
