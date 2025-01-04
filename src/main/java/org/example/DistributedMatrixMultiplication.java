@@ -58,8 +58,8 @@ public class DistributedMatrixMultiplication {
         joinConfig.getMulticastConfig().setEnabled(false);
         joinConfig.getTcpIpConfig()
                 .setEnabled(true)
-                .addMember("IP1")
-                .addMember("IP2");
+                .addMember("192.168.1.101")
+                .addMember("192.168.1.104");
 
         return Hazelcast.newHazelcastInstance(config);
     }
@@ -108,6 +108,34 @@ public class DistributedMatrixMultiplication {
         return result;
     }
 
+    private void printMatrixFinal(int[][] matrix, int maxRows, int maxCols, String title) {
+        System.out.println(title);
+        if (matrix == null) {
+            System.out.println("Matrix is null.");
+            return;
+        }
+
+        int totalRows = matrix.length;
+        int totalCols = matrix[0].length;
+
+        for (int i = 0; i < Math.min(maxRows, totalRows); i++) {
+            for (int j = 0; j < Math.min(maxCols, totalCols); j++) {
+                System.out.printf("%4d", matrix[i][j]);
+            }
+            if (totalCols > maxCols) {
+                System.out.print(" ...");
+            }
+            System.out.println();
+        }
+
+        if (totalRows > maxRows) {
+            System.out.println("...");
+        }
+
+        System.out.println("Matrix Size: " + totalRows + "x" + totalCols);
+        System.out.println();
+    }
+
     public int[][] execute(int rows, int cols) throws InterruptedException{
         HazelcastInstance hazelcastInstance = configureHazelcast();
 
@@ -142,7 +170,9 @@ public class DistributedMatrixMultiplication {
         if (isMaster) {
             System.out.println("Master node aggregating results...");
             int[][] matrixA = distributedMatrixA.get(0);
-            return mergeResults(distributedResults, matrixA.length, matrixB[0].length, distributedChunks.size());
+            int[][] result = mergeResults(distributedResults, matrixA.length, matrixB[0].length, distributedChunks.size());
+            printMatrixFinal(result, 10, 10, "Final Result (Partial View):");
+            return result;
         } else {
             System.out.println("Worker node completed assigned tasks.");
             return null;
