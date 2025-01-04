@@ -5,6 +5,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 
 import java.io.Serializable;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -30,12 +31,23 @@ public class DistributedMatrixMultiplication {
             int size = matrixB.length;
             int[][] result = new int[rows][cols];
 
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols; j++) {
-                    for (int k = 0; k < size; k++) {
-                        result[i][j] += chunkA[i][k] * matrixB[k][j];
+            try {
+                // Obtener la IP de la máquina que está ejecutando
+                String nodeIP = InetAddress.getLocalHost().getHostAddress();
+
+                System.out.println("Nodo con IP " + nodeIP + " está procesando un chunk con " + rows + " filas.");
+
+                for (int i = 0; i < rows; i++) {
+                    for (int j = 0; j < cols; j++) {
+                        for (int k = 0; k < size; k++) {
+                            result[i][j] += chunkA[i][k] * matrixB[k][j];
+                        }
                     }
                 }
+
+                System.out.println("Nodo con IP " + nodeIP + " ha completado el procesamiento del chunk.");
+            } catch (Exception e) {
+                System.err.println("Error en el nodo al procesar un chunk: " + e.getMessage());
             }
             return result;
         }
