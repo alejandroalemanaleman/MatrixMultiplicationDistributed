@@ -111,16 +111,6 @@ public class DistributedMatrixMultiplication {
         return result;
     }
 
-    private void printPartialResults(int[][] result){
-        System.out.println("Partial results:");
-        for (int i = 0; i < Math.min(5, result.length); i++) {
-            for (int j = 0; j < Math.min(5, result[i].length); j++) {
-                System.out.print(result[i][j] + " ");
-            }
-            System.out.println();
-        }
-    }
-
     public int[][] execute(int rows, int cols) throws ExecutionException, InterruptedException {
         HazelcastInstance hazelcastInstance = configureHazelcast();
 
@@ -146,10 +136,16 @@ public class DistributedMatrixMultiplication {
         for (int[][] chunk : chunks) {
             futures.add(executorService.submit(new MatrixMultiplicationTask(chunk, matrixB)));
         }
-        int[][] result = mergeResults(futures, matrixA.length, matrixB[0].length);
 
-        System.out.println("Multiplication completed.");
+        // All nodes, including master, compute their assigned chunks
+        int[][] localResult = mergeResults(futures, matrixA.length, matrixB[0].length);
 
-        return result;
+        // Combine all local results in master (if needed)
+        if (isMaster) {
+            System.out.println("Master node aggregating results...");
+            return localResult; // In distributed scenarios, master could aggregate remote results too.
+        }
+
+        return localResult;
     }
 }
