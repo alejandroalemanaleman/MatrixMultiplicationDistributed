@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 import com.hazelcast.config.Config;
 import com.hazelcast.config.JoinConfig;
@@ -62,8 +60,8 @@ public class DistributedMatrixMultiplication {
         joinConfig.getMulticastConfig().setEnabled(false);
         joinConfig.getTcpIpConfig()
                 .setEnabled(true)
-                .addMember("192.168.1.101")
-                .addMember("192.168.1.102");
+                .addMember("IP1")  // Insert the IP of Node 1
+                .addMember("IP2"); // Insert the IP of Node 2
 
         return Hazelcast.newHazelcastInstance(config);
     }
