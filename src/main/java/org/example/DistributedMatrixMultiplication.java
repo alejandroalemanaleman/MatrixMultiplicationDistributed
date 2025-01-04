@@ -37,6 +37,7 @@ public class DistributedMatrixMultiplication {
                 for (int j = 0; j < cols; j++) {
                     for (int k = 0; k < size; k++) {
                         result[i][j] += chunkA[i][k] * matrixB[k][j];
+                        System.out.println(result[i][j]);
                     }
                 }
             }
