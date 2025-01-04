@@ -32,8 +32,7 @@ public class DistributedMatrixMultiplication {
             int[][] result = new int[rows][cols];
 
             try {
-                // Obtener la IP de la máquina que está ejecutando
-                String nodeIP = InetAddress.getLocalHost().getHostAddress();
+                String nodeIP = IPInfo.getRealIPAddress();
 
                 System.out.println("Nodo con IP " + nodeIP + " está procesando un chunk con " + rows + " filas.");
 
@@ -51,6 +50,7 @@ public class DistributedMatrixMultiplication {
             }
             return result;
         }
+
     }
 
     private static int[][] generateMatrix(int rows, int cols) {
