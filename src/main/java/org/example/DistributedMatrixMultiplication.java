@@ -34,7 +34,7 @@ public class DistributedMatrixMultiplication {
             try {
                 String nodeIP = IPInfo.getRealIPAddress();
 
-                System.out.println("Nodo con IP " + nodeIP + " está procesando un chunk con " + rows + " filas.");
+                System.out.println("Node with IP " + nodeIP + " is procesing a chunk with " + rows + " rows.");
 
                 for (int i = 0; i < rows; i++) {
                     for (int j = 0; j < cols; j++) {
@@ -44,9 +44,9 @@ public class DistributedMatrixMultiplication {
                     }
                 }
 
-                System.out.println("Nodo con IP " + nodeIP + " ha completado el procesamiento del chunk.");
+                System.out.println("Node with IP " + nodeIP + " has completed processing the chunk");
             } catch (Exception e) {
-                System.err.println("Error en el nodo al procesar un chunk: " + e.getMessage());
+                System.err.println("Error in the node while processing a chunk: " + e.getMessage());
             }
             return result;
         }
